@@ -1,5 +1,5 @@
 use std::default::Default;
-use std::fmt::{self, Debug, Display, Formatter, Result as FmtResult};
+use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::iter::Iterator;
 use std::ops::{Index, IndexMut};
 use std::str::FromStr;
@@ -13,7 +13,6 @@ pub struct Annotations([bool; 9]);
 pub struct Sudoku {
     grid: [[u8; 9]; 9],
     hints: [[Annotations; 9]; 9],
-    annotations: [[Annotations; 9]; 9],
 }
 
 /// An iterator over all solutions of a particular sudoku.
@@ -99,7 +98,6 @@ impl Sudoku {
         let mut s = Sudoku {
             grid,
             hints: [[Annotations::new(); 9]; 9],
-            annotations: [[Annotations::new(); 9]; 9],
         };
 
         // Initialize hints array
