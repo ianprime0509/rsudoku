@@ -1,0 +1,8 @@
+[package]
+name = "rsudoku"
+version = "0.1.0"
+authors = ["Ian Johnson <ianprime0509@gmail.com>"]
+
+[dependencies]
+error-chain = "0.10.0"
+clap = "2.26.0"
