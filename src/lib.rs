@@ -3,10 +3,15 @@ extern crate error_chain;
 #[macro_use]
 extern crate itertools;
 extern crate rand;
+extern crate termion;
 
 pub mod errors {
     error_chain! {
         errors {
+            /// The sudoku is invalid (has no solution).
+            InvalidSudoku {
+                description("sudoku is invalid")
+            }
             /// An error encountered while parsing a `Sudoku`.
             Parse(s: String) {
                 description("parse error")
@@ -16,7 +21,9 @@ pub mod errors {
     }
 }
 
+pub mod game;
 pub mod sudoku;
+pub mod tui;
 
 pub use sudoku::Sudoku;
 

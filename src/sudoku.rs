@@ -184,7 +184,8 @@ impl Sudoku {
     /// # Panics
     /// Will panic if `n` is not between 1 and 9, inclusive.
     pub fn put_at(&mut self, n: u8, row: usize, col: usize) {
-        assert!(1 <= n && n <= 9);
+        assert!(1 <= n && n <= 9, "entry number `{}` is invalid", n);
+
         self.grid[row][col] = n;
         self.hints[row][col].clear();
 
@@ -381,6 +382,14 @@ impl FromStr for Sudoku {
         }
 
         Sudoku::from_grid(grid)
+    }
+}
+
+impl Index<usize> for Sudoku {
+    type Output = [u8; 9];
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.grid[index]
     }
 }
 

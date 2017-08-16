@@ -11,6 +11,7 @@ use clap::{Arg, ArgMatches, App, SubCommand};
 
 use rsudoku::Sudoku;
 use rsudoku::errors::*;
+use rsudoku::tui;
 
 quick_main!(run);
 
@@ -58,10 +59,7 @@ fn run() -> Result<()> {
         ("generate", Some(m)) => generate(m),
         ("print", Some(m)) => print(m),
         ("solve", Some(m)) => solve(m),
-        _ => {
-            println!("The game isn't implemented yet");
-            Ok(())
-        }
+        _ => play(&ArgMatches::new()),
     }
 }
 
@@ -74,6 +72,10 @@ fn generate(m: &ArgMatches) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn play(m: &ArgMatches) -> Result<()> {
+    tui::Game::run()
 }
 
 fn print(m: &ArgMatches) -> Result<()> {
