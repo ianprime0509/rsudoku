@@ -19,6 +19,13 @@ fn run() -> Result<()> {
         .version(env!("CARGO_PKG_VERSION"))
         .author("Ian Johnson <ianprime0509@gmail.com>")
         .subcommand(
+            SubCommand::with_name("generate")
+                .about("generates a random Sudoku grid")
+                .arg(Arg::with_name("pretty").short("p").long("pretty").help(
+                    "Pretty prints the output",
+                )),
+        )
+        .subcommand(
             SubCommand::with_name("print")
                 .about("prints a Sudoku grid")
                 .arg(Arg::with_name("pretty").short("p").long("pretty").help(
@@ -48,6 +55,7 @@ fn run() -> Result<()> {
         .get_matches();
 
     match matches.subcommand() {
+        ("generate", Some(m)) => generate(m),
         ("print", Some(m)) => print(m),
         ("solve", Some(m)) => solve(m),
         _ => {
@@ -55,6 +63,17 @@ fn run() -> Result<()> {
             Ok(())
         }
     }
+}
+
+fn generate(m: &ArgMatches) -> Result<()> {
+    let s = Sudoku::generate();
+    if m.is_present("pretty") {
+        println!("{:#}", s);
+    } else {
+        println!("{}", s);
+    }
+
+    Ok(())
 }
 
 fn print(m: &ArgMatches) -> Result<()> {

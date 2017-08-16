@@ -1,5 +1,8 @@
 #[macro_use]
 extern crate error_chain;
+#[macro_use]
+extern crate itertools;
+extern crate rand;
 
 pub mod errors {
     error_chain! {
@@ -90,5 +93,15 @@ mod tests {
                 ],
             ).unwrap()
         );
+    }
+
+    /// Tests sudoku generation.
+    #[test]
+    fn generate() {
+        // Make sure that generated sudokus have precisely one solution
+        for _ in 1..10 {
+            let s = Sudoku::generate();
+            assert!(s.has_unique_solution());
+        }
     }
 }

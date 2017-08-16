@@ -6,3 +6,5 @@ authors = ["Ian Johnson <ianprime0509@gmail.com>"]
 [dependencies]
 error-chain = "0.10.0"
 clap = "2.26.0"
+itertools = "0.6.1"
+rand = "0.3.16"

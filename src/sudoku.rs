@@ -1,8 +1,10 @@
 use std::default::Default;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
-use std::iter::Iterator;
+use std::iter::{IntoIterator, Iterator};
 use std::ops::{Index, IndexMut};
 use std::str::FromStr;
+
+use rand::{self, Rng};
 
 use errors::*;
 
@@ -44,6 +46,16 @@ impl Annotations {
         self.0.iter().fold(0, |n, &b| if b { n + 1 } else { n })
     }
 
+    /// Returns a `Vec` containing all the annotation numbers which are set.
+    pub fn list(&self) -> Vec<u8> {
+        self.0
+            .iter()
+            .enumerate()
+            .filter(|&(_, &b)| b)
+            .map(|(i, _)| i as u8 + 1)
+            .collect()
+    }
+
     /// Returns the lowest annotation which is set.
     pub fn lowest(&self) -> Option<u8> {
         for (i, &b) in self.0.iter().enumerate() {
@@ -62,10 +74,8 @@ impl Annotations {
 
 impl Debug for Annotations {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        for (n, &b) in self.0.iter().enumerate() {
-            if b {
-                write!(f, "{}", n + 1)?;
-            }
+        for n in self.list() {
+            write!(f, "{}", n)?;
         }
         Ok(())
     }
@@ -88,6 +98,15 @@ impl Index<u8> for Annotations {
 impl IndexMut<u8> for Annotations {
     fn index_mut(&mut self, index: u8) -> &mut Self::Output {
         &mut self.0[index as usize - 1]
+    }
+}
+
+impl<'a> IntoIterator for &'a Annotations {
+    type Item = &'a bool;
+    type IntoIter = <&'a Vec<bool> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
     }
 }
 
@@ -117,6 +136,37 @@ impl Sudoku {
         Ok(s)
     }
 
+    /// Generates a `Sudoku` with a random grid. The generated `Sudoku` is guaranteed to have
+    /// exactly one solution.
+    pub fn generate() -> Self {
+        // After generating a random, filled sudoku, we shuffle the positions of entries and try
+        // removing them one by one. If, after removing an entry, we no longer have a solution,
+        // then we put that entry back.
+        let mut s = Sudoku::generate_filled();
+        let mut positions = iproduct!(0..9, 0..9).collect::<Vec<_>>();
+        rand::thread_rng().shuffle(positions.as_mut_slice());
+
+        for (i, j) in positions {
+            let removed = s.remove_at(i, j);
+            if !s.has_unique_solution() {
+                s.put_at(removed, i, j);
+            }
+        }
+
+        assert!(s.has_unique_solution());
+        s
+    }
+
+    /// Returns whether the `Sudoku` has a solution.
+    pub fn has_solution(&self) -> bool {
+        self.solutions().next().is_some()
+    }
+
+    /// Returns whether the `Sudoku` has a unique solution.
+    pub fn has_unique_solution(&self) -> bool {
+        self.solutions().take(2).count() == 1
+    }
+
     /// Returns whether the sudoku is solved.
     pub fn is_solved(&self) -> bool {
         for i in 0..9 {
@@ -130,8 +180,11 @@ impl Sudoku {
     }
 
     /// Puts `n` at position `(row, col)`.
+    ///
+    /// # Panics
+    /// Will panic if `n` is not between 1 and 9, inclusive.
     pub fn put_at(&mut self, n: u8, row: usize, col: usize) {
-        assert!(n <= 9);
+        assert!(1 <= n && n <= 9);
         self.grid[row][col] = n;
         self.hints[row][col].clear();
 
@@ -149,9 +202,71 @@ impl Sudoku {
         }
     }
 
+    /// Removes the entry at position `(row, col)`, returning the entry that was removed.
+    pub fn remove_at(&mut self, row: usize, col: usize) -> u8 {
+        let last = self.grid[row][col];
+        self.grid[row][col] = 0;
+        if last == 0 {
+            return 0;
+        }
+
+        // Add this possibility back in the 3x3 box
+        let (boxrow, boxcol) = (row / 3 * 3, col / 3 * 3);
+        for i in boxrow..boxrow + 3 {
+            for j in boxcol..boxcol + 3 {
+                if self.is_valid_at(last, i, j) {
+                    self.hints[i][j][last] = true;
+                }
+            }
+        }
+        // Add possibility in row and column
+        for i in 0..9 {
+            if self.is_valid_at(last, i, col) {
+                self.hints[i][col][last] = true;
+            }
+            if self.is_valid_at(last, row, i) {
+                self.hints[row][i][last] = true;
+            }
+        }
+        // Recalculate possibilities for removed cell
+        for n in 1..10 {
+            if self.is_valid_at(n, row, col) {
+                self.hints[row][col][n] = true;
+            }
+        }
+
+        last
+    }
+
     /// Returns an iterator over all solutions of this sudoku.
     pub fn solutions(&self) -> Solutions {
         Solutions { stack: vec![self.clone()] }
+    }
+
+    /// Generates a random, completely filled `Sudoku`.
+    fn generate_filled() -> Self {
+        // The process for generating a filled sudoku is to start with an empty grid. For each cell
+        // in the grid, we try random possibilities for that cell until we find one such that the
+        // sudoku still has a solution.
+        let mut s = Sudoku::from_grid([[0; 9]; 9]).unwrap();
+
+        for i in 0..9 {
+            for j in 0..9 {
+                let mut poss = s.hints[i][j].list();
+                // We want to try possibilities randomly
+                rand::thread_rng().shuffle(poss.as_mut_slice());
+                for n in poss {
+                    s.put_at(n, i, j);
+                    if s.has_solution() {
+                        break;
+                    } else {
+                        s.remove_at(i, j);
+                    }
+                }
+            }
+        }
+        assert!(s.is_solved());
+        s
     }
 
     /// Returns the empty space which has the fewest hints (possibilities), or `None` if there are
@@ -273,36 +388,31 @@ impl Iterator for Solutions {
     type Item = Sudoku;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut s = match self.stack.pop() {
-            // Stack empty; no more solutions to find
-            None => return None,
-            Some(s) => s,
-        };
-        // Find the position with the fewest possibilities
-        let (row, col) = match s.find_min_poss() {
-            None => {
-                // No possibilities; need to backtrack
-                if s.is_solved() {
-                    return Some(s);
-                } else {
-                    return self.next();
+        while let Some(mut s) = self.stack.pop() {
+            // Find the position with the fewest possibilities
+            let (row, col) = match s.find_min_poss() {
+                None => {
+                    // No possibilities; need to backtrack
+                    if s.is_solved() {
+                        return Some(s);
+                    } else {
+                        continue;
+                    }
                 }
+                Some(p) => p,
+            };
+
+            // Try one of the possibilities available at this position
+            if let Some(n) = s.hints[row][col].lowest() {
+                let mut tmp = s.clone();
+                s.hints[row][col][n] = false;
+                tmp.put_at(n, row, col);
+                // Don't forget to put s back in the stack at its proper position
+                self.stack.push(s);
+                self.stack.push(tmp);
             }
-            Some(p) => p,
-        };
-
-        // Try all the different possibilities until one works
-        while let Some(n) = s.hints[row][col].lowest() {
-            let mut tmp = s.clone();
-            s.hints[row][col][n] = false;
-            tmp.put_at(n, row, col);
-            // Don't forget to put s back in the stack at its proper position
-            self.stack.push(s);
-            self.stack.push(tmp);
-
-            return self.next();
         }
-        // Ran out of possibilities; time to backtrack
-        return self.next();
+        // Nothing left on the stack
+        None
     }
 }
