@@ -68,7 +68,7 @@ impl Annotations {
 
     /// Toggles the given annotation.
     pub fn toggle(&mut self, n: u8) {
-        self[n - 1] = !self[n - 1];
+        self[n] = !self[n];
     }
 }
 

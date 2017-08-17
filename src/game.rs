@@ -17,6 +17,8 @@ pub struct Game {
     position: (usize, usize),
     /// Undo history.
     history: Vec<UndoState>,
+    /// Whether the current board has been solved.
+    is_solved: bool,
 }
 
 /// A snapshot of relevant fields to be restored when using the undo feature.
@@ -36,6 +38,7 @@ impl Game {
             annotations: [[Annotations::new(); 9]; 9],
             position: (0, 0),
             history: Vec::new(),
+            is_solved: false,
         }
     }
 
@@ -43,6 +46,11 @@ impl Game {
     pub fn annotate(&mut self, n: u8) {
         assert!(1 <= n && n <= 9);
         self.annotations[self.position.0][self.position.1].toggle(n);
+    }
+
+    /// Returns a reference to the user annotations array.
+    pub fn annotations(&self) -> &[[Annotations; 9]; 9] {
+        &self.annotations
     }
 
     /// Returns a reference to the current board.
@@ -73,9 +81,16 @@ impl Game {
             Some(&(row, col)) => {
                 self.save_state();
                 self.board.put_at(s[row][col], row, col);
+                // Check to see if we've solved the board with this hint
+                self.is_solved = self.board.is_solved();
                 Ok(Some((row, col)))
             }
         }
+    }
+
+    /// Returns whether the current board has been solved.
+    pub fn is_solved(&self) -> bool {
+        self.is_solved
     }
 
     /// Moves the current position in the grid by the given amount in each direction.
@@ -117,6 +132,8 @@ impl Game {
         if self.given[row][col] == 0 {
             self.save_state();
             self.board.put_at(n, row, col);
+            // Check to see if we've solved the board with this move
+            self.is_solved = self.board.is_solved();
         }
     }
 
@@ -128,6 +145,8 @@ impl Game {
         if self.given[row][col] == 0 {
             self.save_state();
             self.board.remove_at(row, col);
+            // We may have unsolved the board with this move
+            self.is_solved = self.board.is_solved();
         }
     }
 
@@ -139,6 +158,16 @@ impl Game {
         self.position = (row, col);
     }
 
+    /// Attempts to solve the board completely, returning `true` if this was actually done.
+    pub fn solve(&mut self) -> bool {
+        self.board = match self.board.solutions().next() {
+            None => return false,
+            Some(s) => s,
+        };
+        self.is_solved = true;
+        true
+    }
+
     /// Reverts to the previous game state stored in the history, returning `true` if there was such
     /// a state to revert to and `false` otherwise.
     pub fn undo(&mut self) -> bool {
@@ -147,6 +176,8 @@ impl Game {
             Some(UndoState { board, annotations }) => {
                 self.board = board;
                 self.annotations = annotations;
+                // Update solved status (shouldn't be necessary, but it doesn't hurt to check)
+                self.is_solved = self.board.is_solved();
                 true
             }
         }

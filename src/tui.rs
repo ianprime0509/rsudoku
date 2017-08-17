@@ -24,10 +24,12 @@ const CELL_WIDTH: u16 = 3;
 /// Right now, any value other than 1 won't be handled quite correctly.
 const CELL_HEIGHT: u16 = 1;
 
-/// The background color to use for highlighting the selected cell.
-const COLOR_SELECTION: color::Blue = color::Blue;
 /// The background color to use for highlighting the most recent hint.
 const COLOR_HINT: color::Yellow = color::Yellow;
+/// The background color to use for highlighting the selected cell.
+const COLOR_SELECTION: color::Blue = color::Blue;
+/// The background color to use for indicating that the board has been solved.
+const COLOR_SOLVED: color::Green = color::Green;
 
 /// Contains the state of the TUI game.
 pub struct Game {
@@ -37,6 +39,8 @@ pub struct Game {
     hintpos: Option<(usize, usize)>,
     /// The text to display in the status line.
     status: String,
+    /// Whether to show the annotations window.
+    show_annotations: bool,
 }
 
 /// The outline of a grid to be drawn on screen.
@@ -52,6 +56,7 @@ impl Game {
             game: game::Game::new(),
             hintpos: None,
             status: "Welcome to RSudoku!".into(),
+            show_annotations: false,
         };
         let stdin = stdin();
         let mut stdout = stdout().into_raw_mode().unwrap();
@@ -102,45 +107,56 @@ impl Game {
 
     /// Processes keyboard input for normal mode, returning whether the game should exit.
     fn input<W: Write>(&mut self, key: Key, out: &mut W) -> Result<bool> {
-        match key {
-            Key::Char('q') => return Ok(true),
-            // Motion in grid
-            Key::Char('h') => self.game.move_by(0, -1),
-            Key::Char('j') => self.game.move_by(1, 0),
-            Key::Char('k') => self.game.move_by(-1, 0),
-            Key::Char('l') => self.game.move_by(0, 1),
-            Key::Char('H') => self.game.move_by(0, -3),
-            Key::Char('J') => self.game.move_by(3, 0),
-            Key::Char('K') => self.game.move_by(-3, 0),
-            Key::Char('L') => self.game.move_by(0, 3),
-            // Removal
-            Key::Char('0') | Key::Char('x') | Key::Char('d') | Key::Delete => self.game.remove(),
-            // Insertion
-            Key::Char(c @ '1'...'9') => self.game.put(c.to_digit(10).unwrap() as u8),
-            // Undo
-            Key::Char('u') => {
-                if self.game.undo() {
-                    self.set_status("Undid last move");
-                } else {
-                    self.set_status("Nothing to undo");
+        // We handle this case separately so that we can run status commands even after the game has
+        // been solved; other (normal) commands do not work in this state.
+        if key == Key::Char(':') {
+            return self.input_status(out);
+        }
+        if !self.game.is_solved() {
+            match key {
+                Key::Char('q') => return Ok(true),
+                // Motion in grid
+                Key::Char('h') => self.game.move_by(0, -1),
+                Key::Char('j') => self.game.move_by(1, 0),
+                Key::Char('k') => self.game.move_by(-1, 0),
+                Key::Char('l') => self.game.move_by(0, 1),
+                Key::Char('H') => self.game.move_by(0, -3),
+                Key::Char('J') => self.game.move_by(3, 0),
+                Key::Char('K') => self.game.move_by(-3, 0),
+                Key::Char('L') => self.game.move_by(0, 3),
+                // Removal
+                Key::Char('0') | Key::Char('x') | Key::Char('d') | Key::Delete => {
+                    self.game.remove()
                 }
-            }
-            // Annotation
-            Key::Char('a') => {
-                let stdin = stdin();
-                match stdin.keys().next().unwrap().unwrap() {
-                    Key::Char(c @ '1'...'9') => self.game.annotate(c.to_digit(10).unwrap() as u8),
-                    _ => {}
+                // Insertion
+                Key::Char(c @ '1'...'9') => self.game.put(c.to_digit(10).unwrap() as u8),
+                // Undo
+                Key::Char('u') => {
+                    if self.game.undo() {
+                        self.set_status("Undid last move");
+                    } else {
+                        self.set_status("Nothing to undo");
+                    }
                 }
+                // Annotation
+                Key::Char('a') => {
+                    let stdin = stdin();
+                    match stdin.keys().next().unwrap().unwrap() {
+                        Key::Char(c @ '1'...'9') => {
+                            self.game.annotate(c.to_digit(10).unwrap() as u8)
+                        }
+                        _ => self.set_status("Must enter a number (1-9) to annotate"),
+                    }
+                }
+                _ => {}
             }
-            // Status command
-            Key::Char(':') => return self.input_status(out),
-            _ => {}
         }
 
         // We clear the last given hint here; the highlighting will take place at the end of
         // `input_status` and should be cleared on the next action (which is now).
+        // Using similar reasoning, we also clear the status line.
         self.hintpos = None;
+        self.set_status("");
         self.draw_all(out);
         out.flush().unwrap();
 
@@ -160,13 +176,12 @@ impl Game {
         ).unwrap();
         out.flush().unwrap();
 
-        // By default, we will go back to normal mode at the end of the command
         let stdin = stdin();
         for key in stdin.keys() {
             let key = key.unwrap();
             match key {
                 Key::Char('\n') => {
-                    let res = self.process_command(&command);
+                    let res = self.process_command(&command, out);
                     write!(out, "{}", cursor::Hide).unwrap();
                     self.draw_all(out);
                     out.flush().unwrap();
@@ -193,16 +208,32 @@ impl Game {
 
     /// Processes the given status command and executes the appropriate function, returning whether
     /// the game should exit.
-    fn process_command(&mut self, command: &str) -> Result<bool> {
+    fn process_command<W: Write>(&mut self, command: &str, out: &mut W) -> Result<bool> {
         match command {
             "q" => return Ok(true),
+            "annot" => {
+                self.show_annotations = true;
+                write!(out, "{}", clear::All).unwrap();
+                self.set_status("Turned on annotations display");
+            }
             "hint" => {
                 match self.game.hint()? {
                     Some((row, col)) => {
                         self.hintpos = Some((row, col));
                         self.set_status(&format!("Hint given at position ({}, {})", row, col))
                     }
-                    None => self.set_status("No hint could be given"),
+                    None => self.set_status("Current board is already solved"),
+                }
+            }
+            "new" => self.game = game::Game::new(),
+            "noannot" => {
+                self.show_annotations = false;
+                write!(out, "{}", clear::All).unwrap();
+                self.set_status("Turned off annotations display");
+            }
+            "solve" => {
+                if !self.game.solve() {
+                    self.set_status("Current board has no solution in this state");
                 }
             }
             s => self.set_status(&format!("Unknown command '{}'", s)),
@@ -214,7 +245,74 @@ impl Game {
     /// Draws everything in the TUI.
     fn draw_all<W: Write>(&self, out: &mut W) {
         self.draw_sudoku(out);
+        if self.show_annotations {
+            self.draw_annotations(out);
+        }
         self.draw_status(out);
+    }
+
+    /// Draws the annotations window and its contents. This should only be used if annotations are
+    /// enabled.
+    fn draw_annotations<W: Write>(&self, out: &mut W) {
+        assert!(
+            self.show_annotations,
+            "attempted to draw the annotations window with annotations turned off"
+        );
+        let (width, height) = termion::terminal_size().unwrap();
+        let grid = Grid(CELL_WIDTH, CELL_HEIGHT);
+        let startpos = (width / 2, height / 2 - grid.height() / 2);
+        // The grid position of the top left corner of the 3x3 block we are currently in
+        let boxpos = (
+            self.game.position().0 / 3 * 3,
+            self.game.position().1 / 3 * 3,
+        );
+
+        // Draw grid
+        write!(out, "{}", cursor::Goto(startpos.0, startpos.1)).unwrap();
+        if self.game.is_solved() {
+            write!(
+                out,
+                "{}{}{}",
+                color::Bg(COLOR_SOLVED),
+                grid,
+                color::Bg(color::Reset)
+            ).unwrap();
+        } else {
+            write!(out, "{}", grid).unwrap();
+        }
+        // Draw contents
+        for i in 0..9 {
+            for j in 0..9 {
+                // The grid position of the cell whose annotations we should draw
+                let cellpos = (boxpos.0 + i / 3, boxpos.1 + j / 3);
+                // The number of the annotation that we should draw (1-9)
+                let n = (3 * (i % 3) + j % 3 + 1) as u8;
+
+                // Highlight selected cell
+                if cellpos == self.game.position() {
+                    write!(out, "{}", color::Bg(COLOR_SELECTION)).unwrap();
+                }
+                // Highlight hinted cell
+                if Some(cellpos) == self.hintpos {
+                    write!(out, "{}", color::Bg(COLOR_HINT)).unwrap();
+                }
+                // Change background color if solved
+                if self.game.is_solved() {
+                    write!(out, "{}", color::Bg(COLOR_SOLVED)).unwrap();
+                }
+                draw_in_grid(
+                    out,
+                    if self.game.annotations()[cellpos.0][cellpos.1][n] {
+                        char::from_digit(n as u32, 10).unwrap()
+                    } else {
+                        '.'
+                    },
+                    (i as u16, j as u16),
+                    startpos,
+                );
+                write!(out, "{}", color::Bg(color::Reset)).unwrap();
+            }
+        }
     }
 
     /// Draws the status line.
@@ -233,10 +331,25 @@ impl Game {
     fn draw_sudoku<W: Write>(&self, out: &mut W) {
         let (width, height) = termion::terminal_size().unwrap();
         let grid = Grid(CELL_WIDTH, CELL_HEIGHT);
-        let startpos = (width / 2 - grid.width() / 2, height / 2 - grid.height() / 2);
+        let startpos = if self.show_annotations {
+            (width / 2 - grid.width(), height / 2 - grid.height() / 2)
+        } else {
+            (width / 2 - grid.width() / 2, height / 2 - grid.height() / 2)
+        };
 
         // Draw grid
-        write!(out, "{}{}", cursor::Goto(startpos.0, startpos.1), grid).unwrap();
+        write!(out, "{}", cursor::Goto(startpos.0, startpos.1)).unwrap();
+        if self.game.is_solved() {
+            write!(
+                out,
+                "{}{}{}",
+                color::Bg(COLOR_SOLVED),
+                grid,
+                color::Bg(color::Reset)
+            ).unwrap();
+        } else {
+            write!(out, "{}", grid).unwrap();
+        }
         // Draw contents
         for i in 0..9 {
             for j in 0..9 {
@@ -251,6 +364,10 @@ impl Game {
                 // Highlight most recent hint
                 if Some((i, j)) == self.hintpos {
                     write!(out, "{}", color::Bg(COLOR_HINT)).unwrap();
+                }
+                // Change background color if solved
+                if self.game.is_solved() {
+                    write!(out, "{}", color::Bg(COLOR_SOLVED)).unwrap();
                 }
 
                 draw_in_grid(
