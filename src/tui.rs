@@ -8,7 +8,7 @@
 
 use std::char;
 use std::fmt::{Display, Formatter, Result as FmtResult};
-use std::io::{stdin, stdout, Stdin, Stdout, Write};
+use std::io::{stdin, stdout, Stdout, Write};
 
 use termion::{self, clear, color, cursor, style};
 use termion::event::Key;
@@ -32,7 +32,7 @@ const COLOR_SELECTION: color::Blue = color::Blue;
 const COLOR_SOLVED: color::Green = color::Green;
 
 /// Contains the state of the TUI game.
-pub struct Game {
+pub struct Game<'a> {
     /// The underlying game state.
     game: game::Game,
     /// The position of the last hint given (for highlighting).
@@ -41,6 +41,8 @@ pub struct Game {
     status: String,
     /// Whether to show the annotations window.
     show_annotations: bool,
+    /// The underlying terminal output.
+    stdout: &'a mut RawTerminal<Stdout>,
 }
 
 /// The outline of a grid to be drawn on screen.
@@ -49,18 +51,10 @@ pub struct Game {
 /// cell.
 struct Grid(u16, u16);
 
-impl Game {
+impl<'a> Game<'a> {
     /// Runs the game interactively.
     pub fn run() -> Result<()> {
-        let mut game = Game {
-            game: game::Game::new(),
-            hintpos: None,
-            status: "Welcome to RSudoku!".into(),
-            show_annotations: false,
-        };
-        let stdin = stdin();
         let mut stdout = stdout().into_raw_mode().unwrap();
-
         write!(
             stdout,
             "{}{}{}",
@@ -70,7 +64,16 @@ impl Game {
         ).unwrap();
         stdout.flush().unwrap();
 
-        game.main(stdin, &mut stdout)?;
+        {
+            let mut game = Game {
+                game: game::Game::new(),
+                hintpos: None,
+                status: "Welcome to RSudoku!".into(),
+                show_annotations: false,
+                stdout: &mut stdout,
+            };
+            game.main()?;
+        }
 
         write!(
             stdout,
@@ -85,19 +88,20 @@ impl Game {
     }
 
     /// The main game loop.
-    fn main(&mut self, stdin: Stdin, mut stdout: &mut RawTerminal<Stdout>) -> Result<()> {
-        self.draw_all(stdout);
-        stdout.flush().unwrap();
+    fn main(&mut self) -> Result<()> {
+        self.draw_all();
+        self.stdout.flush().unwrap();
 
+        let stdin = stdin();
         for key in stdin.keys() {
             let key = key.unwrap();
-            match self.input(key, stdout) {
+            match self.input(key) {
                 Ok(true) => break,
                 Ok(false) => {}
                 Err(e) => {
                     self.set_status(&format!("Error: {}", e));
-                    self.draw_status(stdout);
-                    stdout.flush().unwrap();
+                    self.draw_status();
+                    self.stdout.flush().unwrap();
                 }
             }
         }
@@ -106,11 +110,11 @@ impl Game {
     }
 
     /// Processes keyboard input for normal mode, returning whether the game should exit.
-    fn input<W: Write>(&mut self, key: Key, out: &mut W) -> Result<bool> {
+    fn input(&mut self, key: Key) -> Result<bool> {
         // We handle this case separately so that we can run status commands even after the game has
         // been solved; other (normal) commands do not work in this state.
         if key == Key::Char(':') {
-            return self.input_status(out);
+            return self.input_status();
         }
         if !self.game.is_solved() {
             match key {
@@ -157,46 +161,46 @@ impl Game {
         // Using similar reasoning, we also clear the status line.
         self.hintpos = None;
         self.set_status("");
-        self.draw_all(out);
-        out.flush().unwrap();
+        self.draw_all();
+        self.stdout.flush().unwrap();
 
         Ok(false)
     }
 
     /// Processes keyboard input for status mode, returning whether the game should exit.
-    fn input_status<W: Write>(&mut self, out: &mut W) -> Result<bool> {
+    fn input_status(&mut self) -> Result<bool> {
         let mut command = String::new();
         let (_, height) = termion::terminal_size().unwrap();
         write!(
-            out,
+            self.stdout,
             "{}{}:{}",
             cursor::Goto(1, height),
             clear::CurrentLine,
             cursor::Show
         ).unwrap();
-        out.flush().unwrap();
+        self.stdout.flush().unwrap();
 
         let stdin = stdin();
         for key in stdin.keys() {
             let key = key.unwrap();
             match key {
                 Key::Char('\n') => {
-                    let res = self.process_command(&command, out);
-                    write!(out, "{}", cursor::Hide).unwrap();
-                    self.draw_all(out);
-                    out.flush().unwrap();
+                    let res = self.process_command(&command);
+                    write!(self.stdout, "{}", cursor::Hide).unwrap();
+                    self.draw_all();
+                    self.stdout.flush().unwrap();
 
                     return res;
                 }
                 Key::Char(c) => {
                     command.push(c);
-                    write!(out, "{}", c).unwrap();
-                    out.flush().unwrap();
+                    write!(self.stdout, "{}", c).unwrap();
+                    self.stdout.flush().unwrap();
                 }
                 Key::Backspace => {
                     if let Some(_) = command.pop() {
-                        write!(out, "{0} {0}", cursor::Left(1)).unwrap();
-                        out.flush().unwrap();
+                        write!(self.stdout, "{0} {0}", cursor::Left(1)).unwrap();
+                        self.stdout.flush().unwrap();
                     }
                 }
                 _ => {}
@@ -208,12 +212,12 @@ impl Game {
 
     /// Processes the given status command and executes the appropriate function, returning whether
     /// the game should exit.
-    fn process_command<W: Write>(&mut self, command: &str, out: &mut W) -> Result<bool> {
+    fn process_command(&mut self, command: &str) -> Result<bool> {
         match command {
             "q" => return Ok(true),
             "annot" => {
                 self.show_annotations = true;
-                write!(out, "{}", clear::All).unwrap();
+                write!(self.stdout, "{}", clear::All).unwrap();
                 self.set_status("Turned on annotations display");
             }
             "hint" => {
@@ -225,10 +229,14 @@ impl Game {
                     None => self.set_status("Current board is already solved"),
                 }
             }
-            "new" => self.game = game::Game::new(),
+            "new" => {
+                self.game = game::Game::new();
+                self.hintpos = None;
+                self.set_status("Started new game");
+            }
             "noannot" => {
                 self.show_annotations = false;
-                write!(out, "{}", clear::All).unwrap();
+                write!(self.stdout, "{}", clear::All).unwrap();
                 self.set_status("Turned off annotations display");
             }
             "solve" => {
@@ -243,17 +251,17 @@ impl Game {
     }
 
     /// Draws everything in the TUI.
-    fn draw_all<W: Write>(&self, out: &mut W) {
-        self.draw_sudoku(out);
+    fn draw_all(&mut self) {
+        self.draw_sudoku();
         if self.show_annotations {
-            self.draw_annotations(out);
+            self.draw_annotations();
         }
-        self.draw_status(out);
+        self.draw_status();
     }
 
     /// Draws the annotations window and its contents. This should only be used if annotations are
     /// enabled.
-    fn draw_annotations<W: Write>(&self, out: &mut W) {
+    fn draw_annotations(&mut self) {
         assert!(
             self.show_annotations,
             "attempted to draw the annotations window with annotations turned off"
@@ -268,17 +276,17 @@ impl Game {
         );
 
         // Draw grid
-        write!(out, "{}", cursor::Goto(startpos.0, startpos.1)).unwrap();
+        write!(self.stdout, "{}", cursor::Goto(startpos.0, startpos.1)).unwrap();
         if self.game.is_solved() {
             write!(
-                out,
+                self.stdout,
                 "{}{}{}",
                 color::Bg(COLOR_SOLVED),
                 grid,
                 color::Bg(color::Reset)
             ).unwrap();
         } else {
-            write!(out, "{}", grid).unwrap();
+            write!(self.stdout, "{}", grid).unwrap();
         }
         // Draw contents
         for i in 0..9 {
@@ -290,36 +298,37 @@ impl Game {
 
                 // Highlight selected cell
                 if cellpos == self.game.position() {
-                    write!(out, "{}", color::Bg(COLOR_SELECTION)).unwrap();
+                    write!(self.stdout, "{}", color::Bg(COLOR_SELECTION)).unwrap();
                 }
                 // Highlight hinted cell
                 if Some(cellpos) == self.hintpos {
-                    write!(out, "{}", color::Bg(COLOR_HINT)).unwrap();
+                    write!(self.stdout, "{}", color::Bg(COLOR_HINT)).unwrap();
                 }
                 // Change background color if solved
                 if self.game.is_solved() {
-                    write!(out, "{}", color::Bg(COLOR_SOLVED)).unwrap();
+                    write!(self.stdout, "{}", color::Bg(COLOR_SOLVED)).unwrap();
                 }
-                draw_in_grid(
-                    out,
-                    if self.game.annotations()[cellpos.0][cellpos.1][n] {
-                        char::from_digit(n as u32, 10).unwrap()
-                    } else {
-                        '.'
-                    },
-                    (i as u16, j as u16),
-                    startpos,
-                );
-                write!(out, "{}", color::Bg(color::Reset)).unwrap();
+
+                if self.game.annotations()[cellpos.0][cellpos.1][n] {
+                    self.draw_in_grid(
+                        char::from_digit(n as u32, 10).unwrap(),
+                        (i as u16, j as u16),
+                        startpos,
+                    );
+                } else {
+                    self.draw_in_grid('.', (i as u16, j as u16), startpos);
+                }
+
+                write!(self.stdout, "{}", color::Bg(color::Reset)).unwrap();
             }
         }
     }
 
     /// Draws the status line.
-    fn draw_status<W: Write>(&self, out: &mut W) {
+    fn draw_status(&mut self) {
         let (_, height) = termion::terminal_size().unwrap();
         write!(
-            out,
+            self.stdout,
             "{}{}{}",
             cursor::Goto(1, height),
             clear::CurrentLine,
@@ -328,7 +337,7 @@ impl Game {
     }
 
     /// Draws the Sudoku grid (and its contents) to the correct location.
-    fn draw_sudoku<W: Write>(&self, out: &mut W) {
+    fn draw_sudoku(&mut self) {
         let (width, height) = termion::terminal_size().unwrap();
         let grid = Grid(CELL_WIDTH, CELL_HEIGHT);
         let startpos = if self.show_annotations {
@@ -338,51 +347,70 @@ impl Game {
         };
 
         // Draw grid
-        write!(out, "{}", cursor::Goto(startpos.0, startpos.1)).unwrap();
+        write!(self.stdout, "{}", cursor::Goto(startpos.0, startpos.1)).unwrap();
         if self.game.is_solved() {
             write!(
-                out,
+                self.stdout,
                 "{}{}{}",
                 color::Bg(COLOR_SOLVED),
                 grid,
                 color::Bg(color::Reset)
             ).unwrap();
         } else {
-            write!(out, "{}", grid).unwrap();
+            write!(self.stdout, "{}", grid).unwrap();
         }
         // Draw contents
         for i in 0..9 {
             for j in 0..9 {
                 // Bold given entries
                 if self.game.given()[i][j] != 0 {
-                    write!(out, "{}", style::Bold).unwrap();
+                    write!(self.stdout, "{}", style::Bold).unwrap();
                 }
                 // Highlight selection
                 if (i, j) == self.game.position() {
-                    write!(out, "{}", color::Bg(COLOR_SELECTION)).unwrap();
+                    write!(self.stdout, "{}", color::Bg(COLOR_SELECTION)).unwrap();
                 }
                 // Highlight most recent hint
                 if Some((i, j)) == self.hintpos {
-                    write!(out, "{}", color::Bg(COLOR_HINT)).unwrap();
+                    write!(self.stdout, "{}", color::Bg(COLOR_HINT)).unwrap();
                 }
                 // Change background color if solved
                 if self.game.is_solved() {
-                    write!(out, "{}", color::Bg(COLOR_SOLVED)).unwrap();
+                    write!(self.stdout, "{}", color::Bg(COLOR_SOLVED)).unwrap();
                 }
 
-                draw_in_grid(
-                    out,
-                    if self.game.board()[i][j] != 0 {
-                        char::from_digit(self.game.board()[i][j] as u32, 10).unwrap()
-                    } else {
-                        '.'
-                    },
-                    (i as u16, j as u16),
-                    startpos,
-                );
+                if self.game.board()[i][j] != 0 {
+                    let c = char::from_digit(self.game.board()[i][j] as u32, 10).unwrap();
+                    self.draw_in_grid(c, (i as u16, j as u16), startpos);
+                } else {
+                    self.draw_in_grid('.', (i as u16, j as u16), startpos);
+                }
 
-                write!(out, "{}{}", style::Reset, color::Bg(color::Reset)).unwrap();
+                write!(self.stdout, "{}{}", style::Reset, color::Bg(color::Reset)).unwrap();
             }
+        }
+    }
+
+    /// Draws the given character at cell position `position` (in a `Grid`) with the given
+    /// offset.
+    fn draw_in_grid(&mut self, c: char, position: (u16, u16), offset: (u16, u16)) {
+        // Compute the position of this cell, relative to `offset`
+        let relpos = (
+            CELL_WIDTH * position.1 + position.1 / 3 + 1,
+            CELL_HEIGHT * position.0 + position.0 / 3 + 1,
+        );
+        write!(
+            self.stdout,
+            "{}",
+            cursor::Goto(offset.0 + relpos.0, offset.1 + relpos.1)
+        ).unwrap();
+        // We pad with spaces so that background colors can be applied.
+        for _ in 0..CELL_WIDTH / 2 {
+            write!(self.stdout, " ").unwrap();
+        }
+        write!(self.stdout, "{}", c).unwrap();
+        for _ in 0..CELL_WIDTH / 2 {
+            write!(self.stdout, " ").unwrap();
         }
     }
 
@@ -469,28 +497,5 @@ impl Display for Grid {
         write!(f, "╝")?;
 
         Ok(())
-    }
-}
-
-/// Draws the given character at cell position `position` (in a `Grid`) with the given
-/// offset.
-fn draw_in_grid<W: Write>(out: &mut W, c: char, position: (u16, u16), offset: (u16, u16)) {
-    // Compute the position of this cell, relative to `offset`
-    let relpos = (
-        CELL_WIDTH * position.1 + position.1 / 3 + 1,
-        CELL_HEIGHT * position.0 + position.0 / 3 + 1,
-    );
-    write!(
-        out,
-        "{}",
-        cursor::Goto(offset.0 + relpos.0, offset.1 + relpos.1)
-    ).unwrap();
-    // We pad with spaces so that background colors can be applied.
-    for _ in 0..CELL_WIDTH / 2 {
-        write!(out, " ").unwrap();
-    }
-    write!(out, "{}", c).unwrap();
-    for _ in 0..CELL_WIDTH / 2 {
-        write!(out, " ").unwrap();
     }
 }
