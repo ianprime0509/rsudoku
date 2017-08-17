@@ -74,7 +74,7 @@ fn generate(m: &ArgMatches) -> Result<()> {
     Ok(())
 }
 
-fn play(m: &ArgMatches) -> Result<()> {
+fn play(_m: &ArgMatches) -> Result<()> {
     tui::Game::run()
 }
 

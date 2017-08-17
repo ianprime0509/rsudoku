@@ -39,6 +39,12 @@ impl Game {
         }
     }
 
+    /// Toggles the given annotation at the current position.
+    pub fn annotate(&mut self, n: u8) {
+        assert!(1 <= n && n <= 9);
+        self.annotations[self.position.0][self.position.1].toggle(n);
+    }
+
     /// Returns a reference to the current board.
     pub fn board(&self) -> &Sudoku {
         &self.board
@@ -70,6 +76,27 @@ impl Game {
                 Ok(Some((row, col)))
             }
         }
+    }
+
+    /// Moves the current position in the grid by the given amount in each direction.
+    /// If the motion in either direction would take the position outside the grid, the position in
+    /// that direction will be unchanged.
+    pub fn move_by(&mut self, rows: isize, cols: isize) {
+        let (row, col) = self.position();
+        let (newrow, newcol) = (row as isize + rows, col as isize + cols);
+        self.set_position(
+            if 0 <= newrow && newrow < 9 {
+                newrow as usize
+            } else {
+                row
+            },
+            if 0 <= newcol && newcol < 9 {
+                newcol as usize
+
+            } else {
+                col
+            },
+        );
     }
 
     /// Returns the current position in the game grid.
