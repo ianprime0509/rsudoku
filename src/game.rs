@@ -45,6 +45,7 @@ impl Game {
     /// Toggles the given annotation at the current position.
     pub fn annotate(&mut self, n: u8) {
         assert!(1 <= n && n <= 9);
+        self.save_state();
         self.annotations[self.position.0][self.position.1].toggle(n);
     }
 

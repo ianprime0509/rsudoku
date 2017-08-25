@@ -39,6 +39,8 @@ pub struct Game<'a> {
     hintpos: Option<(usize, usize)>,
     /// The text to display in the status line.
     status: String,
+    /// The last status displayed.
+    last_status: Option<String>,
     /// Whether to show the annotations window.
     show_annotations: bool,
     /// The underlying terminal output.
@@ -69,6 +71,7 @@ impl<'a> Game<'a> {
                 game: game::Game::new(),
                 hintpos: None,
                 status: "Welcome to RSudoku!".into(),
+                last_status: None,
                 show_annotations: false,
                 stdout: &mut stdout,
             };
@@ -133,7 +136,10 @@ impl<'a> Game<'a> {
                     self.game.remove()
                 }
                 // Insertion
-                Key::Char(c @ '1'...'9') => self.game.put(c.to_digit(10).unwrap() as u8),
+                Key::Char(c @ '1'...'9') => {
+                    self.game.put(c.to_digit(10).unwrap() as u8);
+                    self.check_solved();
+                }
                 // Undo
                 Key::Char('u') => {
                     if self.game.undo() {
@@ -160,7 +166,7 @@ impl<'a> Game<'a> {
         // `input_status` and should be cleared on the next action (which is now).
         // Using similar reasoning, we also clear the status line.
         self.hintpos = None;
-        self.set_status("");
+        self.clear_status_if_no_change();
         self.draw_all();
         self.stdout.flush().unwrap();
 
@@ -228,6 +234,7 @@ impl<'a> Game<'a> {
                     }
                     None => self.set_status("Current board is already solved"),
                 }
+                self.check_solved();
             }
             "new" => {
                 self.game = game::Game::new();
@@ -243,6 +250,7 @@ impl<'a> Game<'a> {
                 if !self.game.solve() {
                     self.set_status("Current board has no solution in this state");
                 }
+                self.check_solved();
             }
             s => self.set_status(&format!("Unknown command '{}'", s)),
         }
@@ -391,7 +399,7 @@ impl<'a> Game<'a> {
         }
     }
 
-    /// Draws the given character at cell position `position` (in a `Grid`) with the given
+    /// Draws the given character at cell position `position` (relative to a `Grid`) with the given
     /// offset.
     fn draw_in_grid(&mut self, c: char, position: (u16, u16), offset: (u16, u16)) {
         // Compute the position of this cell, relative to `offset`
@@ -414,8 +422,23 @@ impl<'a> Game<'a> {
         }
     }
 
+    /// Checks if the current board has been solved and updates the status accordingly if so.
+    fn check_solved(&mut self) {
+        if self.game.is_solved() {
+            self.set_status("Congratulations, you win!");
+        }
+    }
+
+    /// Clears the status if there has been no change since the last time this method was called.
+    fn clear_status_if_no_change(&mut self) {
+        if self.last_status == Some(self.status.clone()) {
+            self.set_status("");
+        }
+    }
+
     /// Sets the current game status.
     fn set_status(&mut self, status: &str) {
+        self.last_status = Some(self.status.clone());
         self.status = status.into();
     }
 }
