@@ -39,8 +39,6 @@ pub struct Game<'a> {
     hintpos: Option<(usize, usize)>,
     /// The text to display in the status line.
     status: String,
-    /// The last status displayed.
-    last_status: Option<String>,
     /// Whether to show the annotations window.
     show_annotations: bool,
     /// The underlying terminal output.
@@ -71,7 +69,6 @@ impl<'a> Game<'a> {
                 game: game::Game::new(),
                 hintpos: None,
                 status: "Welcome to RSudoku!".into(),
-                last_status: None,
                 show_annotations: false,
                 stdout: &mut stdout,
             };
@@ -114,6 +111,10 @@ impl<'a> Game<'a> {
 
     /// Processes keyboard input for normal mode, returning whether the game should exit.
     fn input(&mut self, key: Key) -> Result<bool> {
+        // We clear the status on each new iteration of the input loop so that the message doesn't
+        // stick around forever (it will be visible until the user does something).
+        self.set_status("");
+
         // We handle this case separately so that we can run status commands even after the game has
         // been solved; other (normal) commands do not work in this state.
         if key == Key::Char(':') {
@@ -164,9 +165,7 @@ impl<'a> Game<'a> {
 
         // We clear the last given hint here; the highlighting will take place at the end of
         // `input_status` and should be cleared on the next action (which is now).
-        // Using similar reasoning, we also clear the status line.
         self.hintpos = None;
-        self.clear_status_if_no_change();
         self.draw_all();
         self.stdout.flush().unwrap();
 
@@ -429,16 +428,8 @@ impl<'a> Game<'a> {
         }
     }
 
-    /// Clears the status if there has been no change since the last time this method was called.
-    fn clear_status_if_no_change(&mut self) {
-        if self.last_status == Some(self.status.clone()) {
-            self.set_status("");
-        }
-    }
-
     /// Sets the current game status.
     fn set_status(&mut self, status: &str) {
-        self.last_status = Some(self.status.clone());
         self.status = status.into();
     }
 }
