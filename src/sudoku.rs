@@ -186,6 +186,9 @@ impl Sudoku {
     pub fn put_at(&mut self, n: u8, row: usize, col: usize) {
         assert!(1 <= n && n <= 9, "entry number `{}` is invalid", n);
 
+        // We need to remove the number in this space first, otherwise replacing a number
+        // won't produce the correct results (hints won't be updated correctly).
+        self.remove_at(row, col);
         self.grid[row][col] = n;
         self.hints[row][col].clear();
 
