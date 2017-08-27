@@ -7,9 +7,13 @@
 //! convention of `(row, column)`.
 
 use std::char;
+use std::ops::Drop;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::io::{stdin, stdout, Stdout, Write};
+use std::thread;
 
+use chan::{self, Receiver};
+use chan_signal::{self, Signal};
 use termion::{self, clear, color, cursor, style};
 use termion::event::Key;
 use termion::input::TermRead;
@@ -18,6 +22,11 @@ use termion::raw::{IntoRawMode, RawTerminal};
 use errors::*;
 use game;
 use util;
+
+/// The minimum width of the terminal to effectively play the game.
+const MIN_WIDTH: u16 = 80;
+/// The minimum height of the terminal to effectively play the game.
+const MIN_HEIGHT: u16 = 25;
 
 /// The width of a single cell in the sudoku grid; must be odd.
 const CELL_WIDTH: u16 = 3;
@@ -47,6 +56,10 @@ pub struct Game<'a> {
     show_annotations: bool,
     /// The underlying terminal output.
     stdout: &'a mut RawTerminal<Stdout>,
+    /// Keyboard input channel.
+    keys: Receiver<Key>,
+    /// Signal input channel.
+    signals: Receiver<Signal>,
 }
 
 /// The outline of a grid to be drawn on screen.
@@ -58,7 +71,25 @@ struct Grid(u16, u16);
 impl<'a> Game<'a> {
     /// Runs the game interactively.
     pub fn run() -> Result<()> {
+
+        // Listen for terminal resize signals.
+        // NOTE: this MUST be called before any other threads are spawned, per the `chan_signal`
+        // documentation.
+        let signals = chan_signal::notify(&[Signal::WINCH]);
+
+        // Set up keyboard input channel
+        let (keys_send, keys_recv) = chan::async();
+        thread::spawn(move || {
+            let stdin = stdin();
+            for key in stdin.keys() {
+                keys_send.send(key.unwrap());
+            }
+        });
+
         let mut stdout = stdout().into_raw_mode().unwrap();
+        // As part of the display setup, we hide the cursor; when the `Game` is dropped, the cursor
+        // will be shown again. This logic is moved to the `Drop` implementation so that it is
+        // guaranteed to happen even if we exit on an error somehow.
         write!(
             stdout,
             "{}{}{}",
@@ -68,45 +99,53 @@ impl<'a> Game<'a> {
         ).unwrap();
         stdout.flush().unwrap();
 
-        {
-            let mut game = Game {
-                game: game::Game::new(),
-                hintpos: None,
-                status: "Welcome to RSudoku!".into(),
-                show_annotations: false,
-                stdout: &mut stdout,
-            };
-            game.main()?;
-        }
-
-        write!(
-            stdout,
-            "{}{}{}",
-            cursor::Show,
-            cursor::Goto(1, 1),
-            clear::All
-        ).unwrap();
-        stdout.flush().unwrap();
+        let mut game = Game {
+            game: game::Game::new(),
+            hintpos: None,
+            status: "Welcome to RSudoku!".into(),
+            show_annotations: false,
+            stdout: &mut stdout,
+            keys: keys_recv,
+            signals,
+        };
+        game.main()?;
 
         Ok(())
     }
 
-    /// The main game loop.
+    /// Runs the game.
     fn main(&mut self) -> Result<()> {
-        self.draw_all();
+        // Draw initial game view, so that it displays before any input is entered
+        self.draw_all()?;
         self.stdout.flush().unwrap();
 
-        let stdin = stdin();
-        for key in stdin.keys() {
-            let key = key.unwrap();
-            match self.input(key) {
-                Ok(true) => break,
-                Ok(false) => {}
-                Err(e) => {
-                    self.set_status(&format!("Error: {}", e));
-                    self.draw_status();
-                    self.stdout.flush().unwrap();
-                }
+        loop {
+            // I have no idea why the `chan_select` macro doesn't accept anything with `self` in it,
+            // but this works just as well I guess...
+            let keys = self.keys.clone();
+            let signals = self.signals.clone();
+            chan_select! {
+                keys.recv() -> key => {
+                    match self.input_key(key.unwrap()) {
+                        Ok(true) => break,
+                        Ok(false) => {}
+                        Err(e) => {
+                            self.set_status(&format!("Error: {}", e));
+                            self.draw_status()?;
+                            self.stdout.flush().unwrap();
+                        }
+                    }
+                },
+                signals.recv() -> signal => {
+                    match signal.unwrap() {
+                        Signal::WINCH => {
+                            write!(self.stdout, "{}", clear::All).unwrap();
+                            self.draw_all()?;
+                            self.stdout.flush().unwrap();
+                        }
+                        _ => {}
+                    }
+                },
             }
         }
 
@@ -114,7 +153,7 @@ impl<'a> Game<'a> {
     }
 
     /// Processes keyboard input for normal mode, returning whether the game should exit.
-    fn input(&mut self, key: Key) -> Result<bool> {
+    fn input_key(&mut self, key: Key) -> Result<bool> {
         // We clear the status on each new iteration of the input loop so that the message doesn't
         // stick around forever (it will be visible until the user does something).
         self.set_status("");
@@ -170,7 +209,7 @@ impl<'a> Game<'a> {
         // We clear the last given hint here; the highlighting will take place at the end of
         // `input_status` and should be cleared on the next action (which is now).
         self.hintpos = None;
-        self.draw_all();
+        self.draw_all()?;
         self.stdout.flush().unwrap();
 
         Ok(false)
@@ -189,14 +228,12 @@ impl<'a> Game<'a> {
         ).unwrap();
         self.stdout.flush().unwrap();
 
-        let stdin = stdin();
-        for key in stdin.keys() {
-            let key = key.unwrap();
+        for key in &self.keys {
             match key {
                 Key::Char('\n') => {
                     let res = self.process_command(&command);
                     write!(self.stdout, "{}{}", clear::CurrentLine, cursor::Hide).unwrap();
-                    self.draw_all();
+                    self.draw_all()?;
                     self.stdout.flush().unwrap();
 
                     return res;
@@ -280,22 +317,23 @@ impl<'a> Game<'a> {
     }
 
     /// Draws everything in the TUI.
-    fn draw_all(&mut self) {
-        self.draw_sudoku();
+    fn draw_all(&mut self) -> Result<()> {
+        self.draw_sudoku()?;
         if self.show_annotations {
-            self.draw_annotations();
+            self.draw_annotations()?;
         }
-        self.draw_status();
+        self.draw_status()
     }
 
     /// Draws the annotations window and its contents. This should only be used if annotations are
     /// enabled.
-    fn draw_annotations(&mut self) {
-        assert!(
-            self.show_annotations,
-            "attempted to draw the annotations window with annotations turned off"
-        );
+    fn draw_annotations(&mut self) -> Result<()> {
+        ensure!(self.show_annotations, ErrorKind::TerminalTooSmall);
         let (width, height) = termion::terminal_size().unwrap();
+        ensure!(
+            width >= MIN_WIDTH && height >= MIN_HEIGHT,
+            ErrorKind::TerminalTooSmall
+        );
         let grid = Grid(CELL_WIDTH, CELL_HEIGHT);
         let startpos = (width / 2, height / 2 - grid.height() / 2);
         // The grid position of the top left corner of the 3x3 block we are currently in
@@ -351,11 +389,14 @@ impl<'a> Game<'a> {
                 write!(self.stdout, "{}", color::Bg(color::Reset)).unwrap();
             }
         }
+
+        Ok(())
     }
 
     /// Draws the status line.
-    fn draw_status(&mut self) {
+    fn draw_status(&mut self) -> Result<()> {
         let (_, height) = termion::terminal_size().unwrap();
+        ensure!(height >= MIN_HEIGHT, ErrorKind::TerminalTooSmall);
         write!(
             self.stdout,
             "{}{}{}",
@@ -363,11 +404,17 @@ impl<'a> Game<'a> {
             clear::CurrentLine,
             self.status
         ).unwrap();
+
+        Ok(())
     }
 
     /// Draws the Sudoku grid (and its contents) to the correct location.
-    fn draw_sudoku(&mut self) {
+    fn draw_sudoku(&mut self) -> Result<()> {
         let (width, height) = termion::terminal_size().unwrap();
+        ensure!(
+            width >= MIN_WIDTH && height >= MIN_HEIGHT,
+            ErrorKind::TerminalTooSmall
+        );
         let grid = Grid(CELL_WIDTH, CELL_HEIGHT);
         let startpos = if self.show_annotations {
             (width / 2 - grid.width(), height / 2 - grid.height() / 2)
@@ -418,6 +465,8 @@ impl<'a> Game<'a> {
                 write!(self.stdout, "{}{}", style::Reset, color::Bg(color::Reset)).unwrap();
             }
         }
+
+        Ok(())
     }
 
     /// Draws the given character at cell position `position` (relative to a `Grid`) with the given
@@ -453,6 +502,20 @@ impl<'a> Game<'a> {
     /// Sets the current game status.
     fn set_status(&mut self, status: &str) {
         self.status = status.into();
+    }
+}
+
+impl<'a> Drop for Game<'a> {
+    fn drop(&mut self) {
+        // Clean up the terminal display
+        write!(
+            self.stdout,
+            "{}{}{}",
+            cursor::Show,
+            cursor::Goto(1, 1),
+            clear::All
+        ).unwrap();
+        self.stdout.flush().unwrap();
     }
 }
 

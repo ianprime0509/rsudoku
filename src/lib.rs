@@ -1,4 +1,7 @@
 #[macro_use]
+extern crate chan;
+extern crate chan_signal;
+#[macro_use]
 extern crate error_chain;
 #[macro_use]
 extern crate itertools;
@@ -16,6 +19,10 @@ pub mod errors {
             Parse(s: String) {
                 description("parse error")
                 display("parse error: {}", s)
+            }
+            /// The terminal window is too small to play the TUI game properly.
+            TerminalTooSmall {
+                description("terminal window too small")
             }
         }
     }

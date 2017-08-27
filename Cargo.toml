@@ -1,16 +1,18 @@
 [package]
+authors = ["Ian Johnson <ianprime0509@gmail.com>"]
 name = "rsudoku"
 version = "0.1.0"
-authors = ["Ian Johnson <ianprime0509@gmail.com>"]
+
+[[bin]]
+doc = false
+name = "main"
+path = "src/main.rs"
 
 [dependencies]
-error-chain = "0.10.0"
+chan = "0.1.19"
+chan-signal = "0.3.1"
 clap = "2.26.0"
+error-chain = "0.10.0"
 itertools = "0.6.1"
 rand = "0.3.16"
 termion = "1.5.1"
-
-[[bin]]
-name = "main"
-path = "src/main.rs"
-doc = false
