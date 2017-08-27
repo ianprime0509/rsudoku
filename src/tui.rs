@@ -195,7 +195,7 @@ impl<'a> Game<'a> {
             match key {
                 Key::Char('\n') => {
                     let res = self.process_command(&command);
-                    write!(self.stdout, "{}", cursor::Hide).unwrap();
+                    write!(self.stdout, "{}{}", clear::CurrentLine, cursor::Hide).unwrap();
                     self.draw_all();
                     self.stdout.flush().unwrap();
 
@@ -215,10 +215,19 @@ impl<'a> Game<'a> {
                     self.stdout.flush().unwrap();
                 }
                 Key::Backspace => {
-                    if let Some(_) = command.pop() {
-                        write!(self.stdout, "{0} {0}", cursor::Left(1)).unwrap();
+                    write!(self.stdout, "{0} {0}", cursor::Left(1)).unwrap();
+                    self.stdout.flush().unwrap();
+                    // Cancel command entry if the user tries to backspace over the leading ':'
+                    if command.pop() == None {
+                        write!(self.stdout, "{}{}", clear::CurrentLine, cursor::Hide).unwrap();
                         self.stdout.flush().unwrap();
+                        return Ok(false);
                     }
+                }
+                Key::Esc => {
+                    write!(self.stdout, "{}{}", clear::CurrentLine, cursor::Hide).unwrap();
+                    self.stdout.flush().unwrap();
+                    return Ok(false);
                 }
                 _ => {}
             }
@@ -231,6 +240,7 @@ impl<'a> Game<'a> {
     /// the game should exit.
     fn process_command(&mut self, command: &str) -> Result<bool> {
         match command {
+            "" => return Ok(false),
             "q" => return Ok(true),
             "annot" => {
                 self.show_annotations = true;
