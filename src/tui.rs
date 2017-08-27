@@ -121,7 +121,8 @@ impl<'a> Game<'a> {
         let (width, height) = termion::terminal_size().unwrap();
         if width < MIN_WIDTH || height < MIN_HEIGHT {
             bail!(
-                "terminal is too small to play the game; must be at least {} rows by {} columns (current terminal has {} rows and {} columns)",
+                "terminal is too small to play the game; must be at least {} rows by {} columns \
+                 (current terminal has {} rows and {} columns)",
                 MIN_HEIGHT,
                 MIN_WIDTH,
                 height,
