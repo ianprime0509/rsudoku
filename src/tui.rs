@@ -24,9 +24,9 @@ use game;
 use util;
 
 /// The minimum width of the terminal to effectively play the game.
-const MIN_WIDTH: u16 = 80;
+const MIN_WIDTH: u16 = 72;
 /// The minimum height of the terminal to effectively play the game.
-const MIN_HEIGHT: u16 = 25;
+const MIN_HEIGHT: u16 = 20;
 
 /// The width of a single cell in the sudoku grid; must be odd.
 const CELL_WIDTH: u16 = 3;
@@ -115,8 +115,21 @@ impl<'a> Game<'a> {
 
     /// Runs the game.
     fn main(&mut self) -> Result<()> {
+        // Check to see if terminal size is too small; if so, nothing will be drawn and the user
+        // may be very confused, so it's best to just exit with an error if this is the case
+        // initially.
+        let (width, height) = termion::terminal_size().unwrap();
+        if width < MIN_WIDTH || height < MIN_HEIGHT {
+            bail!(
+                "terminal is too small to play the game; must be at least {} rows by {} columns (current terminal has {} rows and {} columns)",
+                MIN_HEIGHT,
+                MIN_WIDTH,
+                height,
+                width
+            );
+        }
         // Draw initial game view, so that it displays before any input is entered
-        self.draw_all()?;
+        self.draw_all();
         self.stdout.flush().unwrap();
 
         loop {
@@ -131,7 +144,7 @@ impl<'a> Game<'a> {
                         Ok(false) => {}
                         Err(e) => {
                             self.set_status(&format!("Error: {}", e));
-                            self.draw_status()?;
+                            self.draw_status();
                             self.stdout.flush().unwrap();
                         }
                     }
@@ -140,7 +153,7 @@ impl<'a> Game<'a> {
                     match signal.unwrap() {
                         Signal::WINCH => {
                             write!(self.stdout, "{}", clear::All).unwrap();
-                            self.draw_all()?;
+                            self.draw_all();
                             self.stdout.flush().unwrap();
                         }
                         _ => {}
@@ -209,7 +222,7 @@ impl<'a> Game<'a> {
         // We clear the last given hint here; the highlighting will take place at the end of
         // `input_status` and should be cleared on the next action (which is now).
         self.hintpos = None;
-        self.draw_all()?;
+        self.draw_all();
         self.stdout.flush().unwrap();
 
         Ok(false)
@@ -233,7 +246,7 @@ impl<'a> Game<'a> {
                 Key::Char('\n') => {
                     let res = self.process_command(&command);
                     write!(self.stdout, "{}{}", clear::CurrentLine, cursor::Hide).unwrap();
-                    self.draw_all()?;
+                    self.draw_all();
                     self.stdout.flush().unwrap();
 
                     return res;
@@ -317,23 +330,22 @@ impl<'a> Game<'a> {
     }
 
     /// Draws everything in the TUI.
-    fn draw_all(&mut self) -> Result<()> {
-        self.draw_sudoku()?;
+    fn draw_all(&mut self) {
+        self.draw_sudoku();
         if self.show_annotations {
-            self.draw_annotations()?;
+            self.draw_annotations();
         }
         self.draw_status()
     }
 
     /// Draws the annotations window and its contents. This should only be used if annotations are
     /// enabled.
-    fn draw_annotations(&mut self) -> Result<()> {
-        ensure!(self.show_annotations, ErrorKind::TerminalTooSmall);
+    fn draw_annotations(&mut self) {
+        assert!(self.show_annotations);
         let (width, height) = termion::terminal_size().unwrap();
-        ensure!(
-            width >= MIN_WIDTH && height >= MIN_HEIGHT,
-            ErrorKind::TerminalTooSmall
-        );
+        if width < MIN_WIDTH || height < MIN_HEIGHT {
+            return;
+        }
         let grid = Grid(CELL_WIDTH, CELL_HEIGHT);
         let startpos = (width / 2, height / 2 - grid.height() / 2);
         // The grid position of the top left corner of the 3x3 block we are currently in
@@ -389,14 +401,14 @@ impl<'a> Game<'a> {
                 write!(self.stdout, "{}", color::Bg(color::Reset)).unwrap();
             }
         }
-
-        Ok(())
     }
 
     /// Draws the status line.
-    fn draw_status(&mut self) -> Result<()> {
+    fn draw_status(&mut self) {
         let (_, height) = termion::terminal_size().unwrap();
-        ensure!(height >= MIN_HEIGHT, ErrorKind::TerminalTooSmall);
+        if height < MIN_HEIGHT {
+            return;
+        }
         write!(
             self.stdout,
             "{}{}{}",
@@ -404,17 +416,14 @@ impl<'a> Game<'a> {
             clear::CurrentLine,
             self.status
         ).unwrap();
-
-        Ok(())
     }
 
     /// Draws the Sudoku grid (and its contents) to the correct location.
-    fn draw_sudoku(&mut self) -> Result<()> {
+    fn draw_sudoku(&mut self) {
         let (width, height) = termion::terminal_size().unwrap();
-        ensure!(
-            width >= MIN_WIDTH && height >= MIN_HEIGHT,
-            ErrorKind::TerminalTooSmall
-        );
+        if width < MIN_WIDTH || height < MIN_HEIGHT {
+            return;
+        }
         let grid = Grid(CELL_WIDTH, CELL_HEIGHT);
         let startpos = if self.show_annotations {
             (width / 2 - grid.width(), height / 2 - grid.height() / 2)
@@ -465,8 +474,6 @@ impl<'a> Game<'a> {
                 write!(self.stdout, "{}{}", style::Reset, color::Bg(color::Reset)).unwrap();
             }
         }
-
-        Ok(())
     }
 
     /// Draws the given character at cell position `position` (relative to a `Grid`) with the given

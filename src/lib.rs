@@ -20,10 +20,6 @@ pub mod errors {
                 description("parse error")
                 display("parse error: {}", s)
             }
-            /// The terminal window is too small to play the TUI game properly.
-            TerminalTooSmall {
-                description("terminal window too small")
-            }
         }
     }
 }
