@@ -1,5 +1,7 @@
 //! Universal backend for the interactive Sudoku game.
 
+use std::default::Default;
+
 use rand::{self, Rng};
 
 use errors::*;
@@ -188,8 +190,14 @@ impl Game {
     fn save_state(&mut self) {
         let state = UndoState {
             board: self.board.clone(),
-            annotations: self.annotations.clone(),
+            annotations: self.annotations,
         };
         self.history.push(state);
+    }
+}
+
+impl Default for Game {
+    fn default() -> Self {
+        Game::new()
     }
 }

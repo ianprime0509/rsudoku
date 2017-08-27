@@ -36,7 +36,7 @@ impl Annotations {
 
     /// Clears all annotations.
     pub fn clear(&mut self) {
-        for b in self.0.iter_mut() {
+        for b in &mut self.0 {
             *b = false;
         }
     }
@@ -352,14 +352,14 @@ impl FromStr for Sudoku {
         // We parse `.`, `0`, and `_` as empty squares, and ignore `|` characters and whitespace.
         let mut chars = s.chars().filter(|&c| !c.is_whitespace() && c != '|');
         let mut grid = [[0; 9]; 9];
-        for i in 0..9 {
-            for j in 0..9 {
+        for (i, row) in grid.iter_mut().enumerate() {
+            for (j, elem) in row.iter_mut().enumerate() {
                 match chars.next() {
                     Some(c) => {
                         if c.is_digit(10) {
-                            grid[i][j] = c as u8 - '0' as u8;
+                            *elem = c as u8 - b'0';
                         } else if c == '.' || c == '_' {
-                            grid[i][j] = 0;
+                            *elem = 0;
                         } else {
                             return Err(
                                 ErrorKind::Parse(format!(

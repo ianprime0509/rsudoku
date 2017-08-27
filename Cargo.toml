@@ -9,3 +9,8 @@ clap = "2.26.0"
 itertools = "0.6.1"
 rand = "0.3.16"
 termion = "1.5.1"
+
+[[bin]]
+name = "main"
+path = "src/main.rs"
+doc = false
