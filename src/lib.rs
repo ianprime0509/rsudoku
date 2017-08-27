@@ -24,6 +24,7 @@ pub mod errors {
 pub mod game;
 pub mod sudoku;
 pub mod tui;
+pub mod util;
 
 pub use sudoku::Sudoku;
 

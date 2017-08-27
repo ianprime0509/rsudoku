@@ -17,6 +17,7 @@ use termion::raw::{IntoRawMode, RawTerminal};
 
 use errors::*;
 use game;
+use util;
 
 /// The width of a single cell in the sudoku grid; must be odd.
 const CELL_WIDTH: u16 = 3;
@@ -30,6 +31,9 @@ const COLOR_HINT: color::Yellow = color::Yellow;
 const COLOR_SELECTION: color::Blue = color::Blue;
 /// The background color to use for indicating that the board has been solved.
 const COLOR_SOLVED: color::Green = color::Green;
+
+/// All possible status commands.
+const COMMANDS: &[&str] = &["annot", "hint", "new", "noannot", "solve", "q"];
 
 /// Contains the state of the TUI game.
 pub struct Game<'a> {
@@ -196,6 +200,14 @@ impl<'a> Game<'a> {
                     self.stdout.flush().unwrap();
 
                     return res;
+                }
+                Key::Char('\t') => {
+                    let completion = util::complete(COMMANDS, &command);
+                    for c in completion.chars() {
+                        command.push(c);
+                        write!(self.stdout, "{}", c).unwrap();
+                    }
+                    self.stdout.flush().unwrap();
                 }
                 Key::Char(c) => {
                     command.push(c);
