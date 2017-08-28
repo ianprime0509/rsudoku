@@ -101,6 +101,9 @@ fn generate(m: &ArgMatches) -> Result<()> {
 fn play(m: &ArgMatches) -> Result<()> {
     let s = match m.value_of("INPUT") {
         None => Sudoku::generate(),
+        Some("-") => {
+            bail!("currently, playing a Sudoku given through standard input is not supported")
+        }
         Some(input) => read_to_string(input)?.parse::<Sudoku>()?,
     };
 

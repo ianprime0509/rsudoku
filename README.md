@@ -10,6 +10,7 @@ game, written in Rust.
 * [Installation](#installation)
 * [Usage](#usage)
   * [`generate`](#generate)
+  * [`play`](#play)
   * [`print`](#print)
   * [`solve`](#solve)
 * [Interactive game (TUI)](#tui)
@@ -31,10 +32,10 @@ Windows without a POSIX environment such as Cygwin.
 
 For a description of basic usage from the command line, run `rsudoku
 help`. The functionality of RSudoku is organized into subcommands,
-such as `rsudoku generate`, which are described below. When RSudoku is
-run without a subcommand, it launches the interactive <abbr
-title="text user interface">TUI</abbr> game, as described in the
-[relevant section](#tui).
+such as `rsudoku generate`, which are described below. Running
+`rsudoku` without any arguments is equivalent to running `rsudoku
+play` (see the [section on the `play` subcommand](#play) for more
+details).
 
 ### `generate` <a name="generate"></a>
 
@@ -43,6 +44,16 @@ grids. When run, it will output a Sudoku grid (which is guaranteed to
 have a unique solution) as nine lines of nine digits each. When run
 with the `-p` or `--pretty` option, the output will be pretty printed
 (a grid will be drawn around the output).
+
+### `play` <a name="play"></a>
+
+The `play` subcommand is used to start the [interactive TUI
+game](#tui). An optional filepath can be given as an argument
+(e.g. `rsudoku play sudoku.txt`) to start the game using the Sudoku
+parsed from that file. The expected format of the input is the same as
+that of [the `print` subcommand](#print). If no file is given, a
+random (uniquely solvable) Sudoku will be generated and used as the
+game board.
 
 ### `print` <a name="print"></a>
 
