@@ -1,5 +1,8 @@
 # RSudoku <a name="top"></a>
 
+[![Build Status](https://travis-ci.org/ianprime0509/rsudoku.svg?branch=master)](https://travis-ci.org/ianprime0509/rsudoku)
+[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+
 RSudoku is an all-in-one Sudoku solver, generator, and interactive
 game, written in Rust.
 
