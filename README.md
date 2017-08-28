@@ -16,6 +16,16 @@ game, written in Rust.
   * [Commands](#tui-commands)
 * [License](#license)
 
+## Installation <a name="installation"></a>
+
+To install RSudoku, simply clone this repository and run `cargo
+install` inside the project directory. Cargo will take care of all the
+dependencies; there are no external libraries (such as ncurses) that
+need to be installed on the system. Despite this, I have not tested
+RSudoku on any platform besides Linux, and due to the use of signals
+(for terminal resize handling) I suspect it will not work at all on
+Windows without a POSIX environment such as Cygwin.
+
 ## Usage <a name="usage"></a>
 
 For a description of basic usage from the command line, run `rsudoku
