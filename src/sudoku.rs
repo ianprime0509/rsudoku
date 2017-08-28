@@ -386,27 +386,31 @@ impl FromStr for Sudoku {
                         } else if c == '.' || c == '_' {
                             *elem = 0;
                         } else {
-                            return Err(
-                                ErrorKind::Parse(format!(
-                                    "unexpected character `{}` at position ({}, {}) in sudoku",
-                                    c,
-                                    i,
-                                    j
-                                )).into(),
-                            );
+                            bail!(ErrorKind::Parse(format!(
+                                "unexpected character `{}` at position ({}, {}) in sudoku",
+                                c,
+                                i,
+                                j
+                            )));
                         }
                     }
                     None => {
-                        return Err(
-                            ErrorKind::Parse(format!(
-                                "unexpected end of input at position ({}, {}) in sudoku",
-                                i,
-                                j
-                            )).into(),
-                        )
+                        bail!(ErrorKind::Parse(format!(
+                            "unexpected end of input at position ({}, {}) in sudoku",
+                            i,
+                            j
+                        )));
                     }
                 }
             }
+        }
+
+        // Make sure there is nothing left in the input buffer
+        if let Some(c) = chars.next() {
+            bail!(ErrorKind::Parse(format!(
+                                    "unexpected character `{}` at end of sudoku",
+                                    c,
+                                )));
         }
 
         Sudoku::from_grid(grid)

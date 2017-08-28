@@ -81,7 +81,7 @@ mod tests {
             )
         );
 
-        assert_eq!(a[2], false);
+        assert_eq!(a[9], true);
 
         a = Annotations::from_array([true, false, true, false, true, false, true, true, false]);
         assert_eq!(a.count(), 5);
@@ -120,6 +120,58 @@ mod tests {
                 ],
             ).unwrap()
         );
+    }
+
+    /// Tests whether sudoku parsing will fail on invalid input (as it should).
+    #[test]
+    fn parse_invalid() {
+        let input1 = "000000000
+000000000
+000900900
+000000000
+000000000
+000000000
+000000000
+000000000
+000000000";
+        assert!(input1.parse::<Sudoku>().is_err());
+
+        let input2 = "000000000
+000009000
+000900000
+000000000
+000000000
+000000000
+000000000
+000000000
+000000000";
+        assert!(input2.parse::<Sudoku>().is_err());
+
+        let input3 = "000000000
+000000000
+000900000
+000000000
+000000000
+000000000
+000000000
+000900000
+000000000";
+        assert!(input3.parse::<Sudoku>().is_err());
+
+        let input4 = "This is not a Sudoku!";
+        assert!(input4.parse::<Sudoku>().is_err());
+
+        let input5 = "000000000
+000000000
+000900000
+000000000
+000000000
+000000000
+000000000
+000900000
+000000000
+trailing output is bad";
+        assert!(input5.parse::<Sudoku>().is_err());
     }
 
     /// Tests sudoku generation.
