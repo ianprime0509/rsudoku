@@ -65,7 +65,8 @@ const COMMANDS: &[&str] = &["annot", "help", "hint", "new", "noannot", "solve", 
 const HELP: &str = "TUI GAME CONTROLS
 
 CONTROL              DESCRIPTION
-hjkl or arrows       movement
+hjkl or arrows       movement by cell
+HJKL                 movement by 3x3 box
 1-9                  fill cell with number
 0, d, x, DELETE      clear number in cell
 a <number>           toggles annotation for <number> in cell
@@ -219,10 +220,10 @@ impl<'a> Game<'a> {
             match key {
                 Key::Char('q') => return Ok(true),
                 // Motion in grid
-                Key::Char('h') => self.game.move_by(0, -1),
-                Key::Char('j') => self.game.move_by(1, 0),
-                Key::Char('k') => self.game.move_by(-1, 0),
-                Key::Char('l') => self.game.move_by(0, 1),
+                Key::Char('h') | Key::Left => self.game.move_by(0, -1),
+                Key::Char('j') | Key::Down => self.game.move_by(1, 0),
+                Key::Char('k') | Key::Up => self.game.move_by(-1, 0),
+                Key::Char('l') | Key::Right => self.game.move_by(0, 1),
                 Key::Char('H') => self.game.move_by(0, -3),
                 Key::Char('J') => self.game.move_by(3, 0),
                 Key::Char('K') => self.game.move_by(-3, 0),
