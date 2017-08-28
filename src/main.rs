@@ -37,14 +37,14 @@ fn run() -> Result<()> {
         .author("Ian Johnson <ianprime0509@gmail.com>")
         .subcommand(
             SubCommand::with_name("generate")
-                .about("generates a random Sudoku grid")
+                .about("Generates a random Sudoku grid")
                 .arg(Arg::with_name("pretty").short("p").long("pretty").help(
                     "Pretty prints the output",
                 )),
         )
         .subcommand(
             SubCommand::with_name("print")
-                .about("prints a Sudoku grid")
+                .about("Prints a Sudoku grid")
                 .arg(Arg::with_name("pretty").short("p").long("pretty").help(
                     "Pretty prints the output",
                 ))
@@ -56,7 +56,7 @@ fn run() -> Result<()> {
         )
         .subcommand(
             SubCommand::with_name("solve")
-                .about("solves a Sudoku puzzle")
+                .about("Solves a Sudoku puzzle")
                 .arg(Arg::with_name("all").short("a").long("all").help(
                     "Prints all solutions",
                 ))
