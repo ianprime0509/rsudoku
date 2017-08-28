@@ -17,15 +17,16 @@
 //! The TUI for the interactive game.
 //!
 //! # Notes
+//!
 //! Unfortunately, `termion` uses the somewhat confusing convention that terminal positions are
 //! given as `(column, row)`. Therefore, we follow that convention for things that are drawn to the
 //! screen (like `Grid`), but anything coming from a `game::Game` or `Sudoku` follows the usual
 //! convention of `(row, column)`.
 
 use std::char;
-use std::ops::Drop;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::io::{stdin, stdout, Stdout, Write};
+use std::ops::Drop;
 use std::thread;
 
 use chan::{self, Receiver};
@@ -58,7 +59,28 @@ const COLOR_SELECTION: color::Blue = color::Blue;
 const COLOR_SOLVED: color::Green = color::Green;
 
 /// All possible status commands.
-const COMMANDS: &[&str] = &["annot", "hint", "new", "noannot", "solve", "q"];
+const COMMANDS: &[&str] = &["annot", "help", "hint", "new", "noannot", "solve", "q"];
+
+/// A documentation string for the in-game controls.
+const HELP: &str = "TUI GAME CONTROLS
+
+CONTROL              DESCRIPTION
+hjkl or arrows       movement
+1-9                  fill cell with number
+0, d, x, DELETE      clear number in cell
+a <number>           toggles annotation for <number> in cell
+u                    undo last action
+:                    input an ex-style command (see list below)
+
+COMMANDS             DESCRIPTION
+:q                   quit the game
+:annot               turn on annotations display
+:noannot             turn off annotations display
+:help                show this help
+:hint                give a hint
+:new                 start a new game
+:solve               solve the current board
+";
 
 /// Contains the state of the TUI game.
 pub struct Game<'a> {
@@ -118,7 +140,7 @@ impl<'a> Game<'a> {
         let mut game = Game {
             game: game::Game::new(),
             hintpos: None,
-            status: "Welcome to RSudoku!".into(),
+            status: "Welcome to RSudoku! Type `:help<RET>` for help.".into(),
             show_annotations: false,
             stdout: &mut stdout,
             keys: keys_recv,
@@ -314,6 +336,7 @@ impl<'a> Game<'a> {
                 write!(self.stdout, "{}", clear::All).unwrap();
                 self.set_status("Turned on annotations display");
             }
+            "help" => self.show_help()?,
             "hint" => {
                 match self.game.hint()? {
                     Some((row, col)) => {
@@ -526,6 +549,31 @@ impl<'a> Game<'a> {
     /// Sets the current game status.
     fn set_status(&mut self, status: &str) {
         self.status = status.into();
+    }
+
+    /// Shows the game help.
+    fn show_help(&mut self) -> Result<()> {
+        let (_, height) = termion::terminal_size().unwrap();
+        write!(
+            self.stdout,
+            "{}{}{}{}{}{}",
+            cursor::Hide,
+            clear::All,
+            cursor::Goto(1, 1),
+            // Since we're in raw mode, '\n' only means "move one row down"
+            HELP.replace('\n', "\r\n"),
+            cursor::Goto(1, height),
+            "(press any key to close help)"
+        ).unwrap();
+        self.stdout.flush().unwrap();
+
+        // Wait for a key
+        self.keys.recv().unwrap();
+
+        write!(self.stdout, "{}{}", clear::All, cursor::Show).unwrap();
+        self.draw_all();
+        self.stdout.flush().unwrap();
+        Ok(())
     }
 }
 
