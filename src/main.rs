@@ -136,12 +136,12 @@ fn solve(m: &ArgMatches) -> Result<()> {
 
     let s = contents.parse::<Sudoku>()?;
     if m.is_present("all") {
-        let sols = s.solutions().collect::<Vec<_>>();
-        let nsols = sols.len();
-        for sol in sols {
+        let mut nsols = 0;
+        for sol in s.solutions() {
+            nsols += 1;
             if m.is_present("pretty") {
                 println!("{:#}", sol);
-                println!("============");
+                println!("=============");
             } else {
                 println!("{}", sol);
                 println!("=========");
