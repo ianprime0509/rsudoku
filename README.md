@@ -1,9 +1,20 @@
 # RSudoku <a name="top"></a>
 
-![Screenshot of RSudoku main window](screenshot.png)
-
 RSudoku is an all-in-one Sudoku solver, generator, and interactive
 game, written in Rust.
+
+![Screenshot of RSudoku main window](screenshot.png)
+
+*A screenshot of the terminal game interface*
+
+* [Usage](#usage)
+  * [`generate`](#generate)
+  * [`print`](#print)
+  * [`solve`](#solve)
+* [Interactive game (TUI)](#tui)
+  * [Controls](#tui-controls)
+  * [Commands](#tui-commands)
+* [License](#license)
 
 ## Usage <a name="usage"></a>
 
