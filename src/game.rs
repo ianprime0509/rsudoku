@@ -24,6 +24,7 @@ use errors::*;
 use sudoku::{Annotations, Sudoku};
 
 /// Represents the state of a game.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Game {
     /// The board currently in play.
     board: Sudoku,
@@ -40,6 +41,7 @@ pub struct Game {
 }
 
 /// A snapshot of relevant fields to be restored when using the undo feature.
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct UndoState {
     board: Sudoku,
     annotations: [[Annotations; 9]; 9],
@@ -182,9 +184,12 @@ impl Game {
 
     /// Attempts to solve the board completely, returning `true` if this was actually done.
     pub fn solve(&mut self) -> bool {
-        self.board = match self.board.solutions().next() {
+        match self.board.solutions().next() {
             None => return false,
-            Some(s) => s,
+            Some(s) => {
+                self.save_state();
+                self.board = s;
+            }
         };
         self.is_solved = true;
         true
