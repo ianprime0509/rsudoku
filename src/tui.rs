@@ -247,8 +247,7 @@ impl<'a> Game<'a> {
                 }
                 // Annotation
                 Key::Char('a') => {
-                    let stdin = stdin();
-                    match stdin.keys().next().unwrap().unwrap() {
+                    match self.keys.recv().unwrap() {
                         Key::Char(c @ '1'...'9') => {
                             self.game.annotate(c.to_digit(10).unwrap() as u8)
                         }
