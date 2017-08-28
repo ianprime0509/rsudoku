@@ -24,6 +24,11 @@ use rand::{self, Rng};
 
 use errors::*;
 
+/// The annotations for a single cell in a `Sudoku`.
+///
+/// For convenience, the `Index` and `IndexMut` traits are implemented for this type so that the
+/// annotation for a particular number can be accessed directly without recomputing the index. For
+/// example, `annotations[1]` will return whether the annotation `1` is set.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Annotations([bool; 9]);
 
@@ -139,7 +144,11 @@ impl Sudoku {
         for i in 0..9 {
             for j in 0..9 {
                 if s.grid[i][j] != 0 {
-                    continue;
+                    if s.is_valid_at(s.grid[i][j], i, j) {
+                        continue;
+                    } else {
+                        bail!(ErrorKind::InvalidSudoku);
+                    }
                 }
                 for n in 1..10 {
                     if s.is_valid_at(n, i, j) {
