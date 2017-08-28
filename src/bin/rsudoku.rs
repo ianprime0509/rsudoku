@@ -83,7 +83,7 @@ fn run() -> Result<()> {
         ("play", Some(m)) => play(m),
         ("print", Some(m)) => print(m),
         ("solve", Some(m)) => solve(m),
-        _ => play(&matches),
+        _ => play(&ArgMatches::new()),
     }
 }
 
