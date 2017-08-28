@@ -39,6 +39,7 @@ use termion::raw::{IntoRawMode, RawTerminal};
 use errors::*;
 use game;
 use util;
+use Sudoku;
 
 /// The minimum width of the terminal to effectively play the game.
 const MIN_WIDTH: u16 = 72;
@@ -108,9 +109,8 @@ pub struct Game<'a> {
 struct Grid(u16, u16);
 
 impl<'a> Game<'a> {
-    /// Runs the game interactively.
-    pub fn run() -> Result<()> {
-
+    /// Runs the game interactively, using the given `Sudoku` as the initial board.
+    pub fn run(s: Sudoku) -> Result<()> {
         // Listen for terminal resize signals.
         // NOTE: this MUST be called before any other threads are spawned, per the `chan_signal`
         // documentation.
@@ -139,7 +139,7 @@ impl<'a> Game<'a> {
         stdout.flush().unwrap();
 
         let mut game = Game {
-            game: game::Game::new(),
+            game: game::Game::from_sudoku(s),
             hintpos: None,
             status: "Welcome to RSudoku! Type `:help<RET>` for help.".into(),
             show_annotations: false,

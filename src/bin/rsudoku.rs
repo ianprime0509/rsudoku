@@ -43,6 +43,13 @@ fn run() -> Result<()> {
                 )),
         )
         .subcommand(
+            SubCommand::with_name("play")
+                .about("Plays the interactive console game")
+                .arg(Arg::with_name("INPUT").help(
+                    "Sets the input file to use for the game board",
+                )),
+        )
+        .subcommand(
             SubCommand::with_name("print")
                 .about("Prints a Sudoku grid")
                 .arg(Arg::with_name("pretty").short("p").long("pretty").help(
@@ -73,9 +80,10 @@ fn run() -> Result<()> {
 
     match matches.subcommand() {
         ("generate", Some(m)) => generate(m),
+        ("play", Some(m)) => play(m),
         ("print", Some(m)) => print(m),
         ("solve", Some(m)) => solve(m),
-        _ => play(&ArgMatches::new()),
+        _ => play(&matches),
     }
 }
 
@@ -90,26 +98,20 @@ fn generate(m: &ArgMatches) -> Result<()> {
     Ok(())
 }
 
-fn play(_m: &ArgMatches) -> Result<()> {
-    tui::Game::run()
+fn play(m: &ArgMatches) -> Result<()> {
+    let s = match m.value_of("INPUT") {
+        None => Sudoku::generate(),
+        Some(input) => read_to_string(input)?.parse::<Sudoku>()?,
+    };
+
+    tui::Game::run(s)
 }
 
 fn print(m: &ArgMatches) -> Result<()> {
     // We can safely unwrap here since we set a default value
     let input = m.value_of("INPUT").unwrap();
-    let mut br = if input == "-" {
-        BufReader::new(Box::new(io::stdin()) as Box<Read>)
-    } else {
-        BufReader::new(Box::new(File::open(input).chain_err(|| {
-            format!("could not open file `{}`", input)
-        })?) as Box<Read>)
-    };
-    let mut contents = String::new();
-    br.read_to_string(&mut contents).chain_err(|| {
-        format!("could not read contents of file `{}`", input)
-    })?;
+    let s = read_to_string(input)?.parse::<Sudoku>()?;
 
-    let s = contents.parse::<Sudoku>()?;
     if m.is_present("pretty") {
         println!("{:#}", s);
     } else {
@@ -122,19 +124,8 @@ fn print(m: &ArgMatches) -> Result<()> {
 fn solve(m: &ArgMatches) -> Result<()> {
     // We can safely unwrap here since we set a default value
     let input = m.value_of("INPUT").unwrap();
-    let mut br = if input == "-" {
-        BufReader::new(Box::new(io::stdin()) as Box<Read>)
-    } else {
-        BufReader::new(Box::new(File::open(input).chain_err(|| {
-            format!("could not open file `{}`", input)
-        })?) as Box<Read>)
-    };
-    let mut contents = String::new();
-    br.read_to_string(&mut contents).chain_err(|| {
-        format!("could not read contents of file `{}`", input)
-    })?;
+    let s = read_to_string(input)?.parse::<Sudoku>()?;
 
-    let s = contents.parse::<Sudoku>()?;
     if m.is_present("all") {
         let mut nsols = 0;
         for sol in s.solutions() {
@@ -166,4 +157,23 @@ fn solve(m: &ArgMatches) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// A helper function which reads the given file to a string. The special filename `-` represents
+/// standard input.
+fn read_to_string(filename: &str) -> Result<String> {
+    let mut br = if filename == "-" {
+        BufReader::new(Box::new(io::stdin()) as Box<Read>)
+    } else {
+        BufReader::new(Box::new(File::open(filename).chain_err(|| {
+            format!("could not open file `{}`", filename)
+        })?) as Box<Read>)
+    };
+
+    let mut contents = String::new();
+    br.read_to_string(&mut contents).chain_err(|| {
+        format!("could not read contents of file `{}`", filename)
+    })?;
+
+    Ok(contents)
 }

@@ -46,10 +46,13 @@ struct UndoState {
 }
 
 impl Game {
-    /// Starts a new game with a randomly generated (uniquely solvable) board.
+    /// Returns a new game using a randomly generated (uniquely solvable) board.
     pub fn new() -> Self {
-        let given = Sudoku::generate();
+        Game::from_sudoku(Sudoku::generate())
+    }
 
+    /// Returns a new game using the given board.
+    pub fn from_sudoku(given: Sudoku) -> Self {
         Game {
             board: given.clone(),
             given,
