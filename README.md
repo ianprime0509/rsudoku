@@ -34,7 +34,7 @@ For a description of basic usage from the command line, run `rsudoku
 help`. The functionality of RSudoku is organized into subcommands,
 such as `rsudoku generate`, which are described below. Running
 `rsudoku` without any arguments is equivalent to running `rsudoku
-play` (see the [section on the `play` subcommand](#play) for more
+play` (see the section on the [`play`](#play) subcommand for more
 details).
 
 ### `generate` <a name="generate"></a>
@@ -51,7 +51,7 @@ The `play` subcommand is used to start the [interactive TUI
 game](#tui). An optional filepath can be given as an argument
 (e.g. `rsudoku play sudoku.txt`) to start the game using the Sudoku
 parsed from that file. The expected format of the input is the same as
-that of [the `print` subcommand](#print). If no file is given, a
+that of the [`print`](#print) subcommand. If no file is given, a
 random (uniquely solvable) Sudoku will be generated and used as the
 game board.
 
