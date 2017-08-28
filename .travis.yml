@@ -1,4 +1,4 @@
-langauge: rust
+language: rust
 rust:
   - stable
   - beta
