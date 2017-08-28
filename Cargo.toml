@@ -5,8 +5,8 @@ version = "0.1.0"
 
 [[bin]]
 doc = false
-name = "main"
-path = "src/main.rs"
+name = "rsudoku"
+path = "src/bin/rsudoku.rs"
 
 [dependencies]
 chan = "0.1.19"
