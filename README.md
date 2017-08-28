@@ -7,6 +7,7 @@ game, written in Rust.
 
 *A screenshot of the terminal game interface*
 
+* [Installation](#installation)
 * [Usage](#usage)
   * [`generate`](#generate)
   * [`print`](#print)
