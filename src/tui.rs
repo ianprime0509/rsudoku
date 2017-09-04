@@ -58,6 +58,8 @@ const COLOR_HINT: color::Yellow = color::Yellow;
 const COLOR_SELECTION: color::Blue = color::Blue;
 /// The background color to use for indicating that the board has been solved.
 const COLOR_SOLVED: color::Green = color::Green;
+/// The background color to use for highlighting filled cells in the annotations window.
+const COLOR_FILLED: color::LightBlack = color::LightBlack;
 
 /// All possible status commands.
 const COMMANDS: &[&str] = &["annot", "help", "hint", "new", "noannot", "solve", "q"];
@@ -413,6 +415,10 @@ impl<'a> Game<'a> {
                 // The number of the annotation that we should draw (1-9)
                 let n = (3 * (i % 3) + j % 3 + 1) as u8;
 
+                // Highlight filled cell
+                if self.game.board()[cellpos.0][cellpos.1] != 0 {
+                    write!(self.stdout, "{}", color::Bg(COLOR_FILLED)).unwrap();
+                }
                 // Highlight selected cell
                 if cellpos == self.game.position() {
                     write!(self.stdout, "{}", color::Bg(COLOR_SELECTION)).unwrap();
