@@ -82,6 +82,12 @@ impl Game {
         &self.board
     }
 
+    /// Clears the annotations at the current position.
+    pub fn clear_annotations(&mut self) {
+        self.save_state();
+        self.annotations[self.position.0][self.position.1].clear();
+    }
+
     /// Returns a reference to the originally given board before any user input.
     pub fn given(&self) -> &Sudoku {
         &self.given
@@ -131,7 +137,6 @@ impl Game {
             },
             if 0 <= newcol && newcol < 9 {
                 newcol as usize
-
             } else {
                 col
             },

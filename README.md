@@ -115,7 +115,8 @@ To see these controls in-game, run the `:help` command.
 * **HJKL**: movement by 3x3 box
 * **1-9**: fill cell with number
 * **0**, **d**, **x**, **DELETE**: clear number in cell
-* **a** *<number>*: toggles annotation for *<number>* in cell
+* **a** *<number>*: toggle annotation for *<number>* in cell
+* **a x**, **a d**: clear all annotations in cell
 * **u**: undo last action
 * **:**: input an ex-style command (see [list](#tui-commands) below)
 

@@ -70,7 +70,8 @@ hjkl or arrows       movement by cell
 HJKL                 movement by 3x3 box
 1-9                  fill cell with number
 0, d, x, DELETE      clear number in cell
-a <number>           toggles annotation for <number> in cell
+a <number>           toggle annotation for <number> in cell
+a x, a d             clear all annotations in cell
 u                    undo last action
 :                    input an ex-style command (see list below)
 
@@ -238,22 +239,19 @@ impl<'a> Game<'a> {
                     self.check_solved();
                 }
                 // Undo
-                Key::Char('u') => {
-                    if self.game.undo() {
-                        self.set_status("Undid last move");
-                    } else {
-                        self.set_status("Nothing to undo");
-                    }
-                }
+                Key::Char('u') => if self.game.undo() {
+                    self.set_status("Undid last move");
+                } else {
+                    self.set_status("Nothing to undo");
+                },
                 // Annotation
-                Key::Char('a') => {
-                    match self.keys.recv().unwrap() {
-                        Key::Char(c @ '1'...'9') => {
-                            self.game.annotate(c.to_digit(10).unwrap() as u8)
-                        }
-                        _ => self.set_status("Must enter a number (1-9) to annotate"),
-                    }
-                }
+                Key::Char('a') => match self.keys.recv().unwrap() {
+                    Key::Char(c @ '1'...'9') => self.game.annotate(c.to_digit(10).unwrap() as u8),
+                    Key::Char('x') | Key::Char('d') => self.game.clear_annotations(),
+                    _ => self.set_status(
+                        "Must enter a number (1-9) to annotate, or 'x' or 'd' to clear",
+                    ),
+                },
                 _ => {}
             }
         }
